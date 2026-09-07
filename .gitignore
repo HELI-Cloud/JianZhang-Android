@@ -1,0 +1,33 @@
+# Gradle / Android build outputs
+.gradle/
+.kotlin/
+build/
+app/build/
+dist/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Local machine config
+local.properties
+keystore.properties
+keystore/
+*.jks
+*.keystore
+*.hprof
+
+# Local helper scripts
+build.ps1
+
+# Logs / backups
+*.log
+backup-helisec-scaffold/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
