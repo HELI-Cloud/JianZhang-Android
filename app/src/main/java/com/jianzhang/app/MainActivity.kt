@@ -10,6 +10,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { JzApp(application as JzApplication) }
+        val route = intent.getStringExtra("reminder_route")
+        setContent { JzApp(application as JzApplication, initialRoute = route) }
     }
 }

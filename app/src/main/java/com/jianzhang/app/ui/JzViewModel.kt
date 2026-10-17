@@ -8,10 +8,14 @@ import androidx.lifecycle.AndroidViewModel
 import com.jianzhang.app.JzApplication
 import com.jianzhang.app.data.AuthStore
 import com.jianzhang.app.data.JzRepository
+import com.jianzhang.app.data.ReminderEngine
+import com.jianzhang.app.data.ReminderScheduler
 import com.jianzhang.app.data.SettingsStore
 import com.jianzhang.app.data.Transaction
+import com.jianzhang.app.data.Transfer
 import com.jianzhang.app.model.AppSettings
 import com.jianzhang.app.model.AuthStatus
+import com.jianzhang.app.model.ReminderItem
 import com.jianzhang.app.util.currentMonth
 import com.jianzhang.app.util.shiftMonth
 
@@ -26,6 +30,15 @@ class JzViewModel(app: Application) : AndroidViewModel(app) {
     var refreshKey by mutableStateOf(0)
         private set
 
+    var route by mutableStateOf("overview")
+        private set
+
+    var reminders by mutableStateOf<List<ReminderItem>>(emptyList())
+        private set
+
+    var reminderCount by mutableStateOf(0)
+        private set
+
     var settings by mutableStateOf(settingsStore.load())
         private set
 
@@ -33,6 +46,12 @@ class JzViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     var sheetOpen by mutableStateOf(false)
+        private set
+
+    var editingTransfer by mutableStateOf<Transfer?>(null)
+        private set
+
+    var transferOpen by mutableStateOf(false)
         private set
 
     var authStatus by mutableStateOf(if (authStore.hasPassword()) AuthStatus.LOCKED else AuthStatus.SETUP)
@@ -50,9 +69,38 @@ class JzViewModel(app: Application) : AndroidViewModel(app) {
         refreshKey++
     }
 
+    fun navigate(next: String) {
+        route = next
+    }
+
+    suspend fun refreshReminders() {
+        val items = runCatching { ReminderEngine.build(repository, settings) }.getOrDefault(emptyList())
+        val dismissed = runCatching { repository.dismissedReminderKeys() }.getOrDefault(emptySet())
+        reminders = items
+        reminderCount = items.count { it.key !in dismissed }
+    }
+
+    suspend fun dismissReminder(key: String) {
+        repository.dismissReminder(key)
+        refreshReminders()
+    }
+
+    suspend fun clearReminderDismissals() {
+        repository.clearDismissedReminders()
+        refreshReminders()
+    }
+
+    suspend fun runRecurringNow(): Int {
+        val count = repository.runRecurring(autoOnly = false)
+        refresh()
+        refreshReminders()
+        return count
+    }
+
     fun saveSettings(s: AppSettings) {
         settings = s
         settingsStore.save(s)
+        ReminderScheduler.sync(getApplication(), s)
     }
 
     fun openAdd() {
@@ -68,6 +116,16 @@ class JzViewModel(app: Application) : AndroidViewModel(app) {
     fun closeSheet() {
         sheetOpen = false
         editing = null
+    }
+
+    fun openTransfer(transfer: Transfer? = null) {
+        editingTransfer = transfer
+        transferOpen = true
+    }
+
+    fun closeTransfer() {
+        transferOpen = false
+        editingTransfer = null
     }
 
     fun rememberLastCategory(id: Long) {

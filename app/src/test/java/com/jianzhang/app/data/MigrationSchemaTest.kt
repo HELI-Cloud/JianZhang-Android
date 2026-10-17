@@ -35,12 +35,37 @@ class MigrationSchemaTest {
 
     @Test
     fun migrationCreatesExactRoomSchema() {
-        assertEquals(normalize(createSqlFromSchema("budgets"), "budgets"), normalize(CREATE_BUDGETS_SQL, "budgets"))
+        val tables = mapOf(
+            "budgets" to CREATE_BUDGETS_SQL,
+            "accounts" to CREATE_ACCOUNTS_SQL,
+            "transfers" to CREATE_TRANSFERS_SQL,
+            "tags" to CREATE_TAGS_SQL,
+            "transaction_tags" to CREATE_TRANSACTION_TAGS_SQL,
+            "recurring_rules" to CREATE_RECURRING_RULES_SQL,
+            "reminder_dismissals" to CREATE_REMINDER_DISMISSALS_SQL,
+        )
+        tables.forEach { (table, sql) ->
+            assertEquals(
+                "迁移 SQL 与 Room schema 不一致：$table",
+                normalize(createSqlFromSchema(table), table),
+                normalize(sql, table),
+            )
+        }
     }
 
     @Test
     fun migrationSqlHasNoForeignKeysOrCheckConstraints() {
-        assertFalse(CREATE_BUDGETS_SQL.contains("REFERENCES"))
-        assertFalse(CREATE_BUDGETS_SQL.contains("CHECK"))
+        listOf(
+            CREATE_BUDGETS_SQL,
+            CREATE_ACCOUNTS_SQL,
+            CREATE_TRANSFERS_SQL,
+            CREATE_TAGS_SQL,
+            CREATE_TRANSACTION_TAGS_SQL,
+            CREATE_RECURRING_RULES_SQL,
+            CREATE_REMINDER_DISMISSALS_SQL,
+        ).forEach {
+            assertFalse(it.contains("REFERENCES"))
+            assertFalse(it.contains("CHECK"))
+        }
     }
 }

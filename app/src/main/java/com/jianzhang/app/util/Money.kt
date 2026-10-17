@@ -22,6 +22,25 @@ private fun groupDigits(n: Long): String {
 }
 
 /** 解析用户输入的元为分；非法输入返回 null（与桌面版规则一致） */
+/**
+ * 将"分"还原为可直接编辑的元字符串：无千分位、无科学计数法、去掉多余末尾零。
+ * 用于金额输入框回填，避免 (cents / 100.0).toString() 在大额时输出 1.9E10 这类科学计数法。
+ * 0 返回空串（表单占位为空比 "0" 更自然）。
+ */
+fun yuanPlain(cents: Long): String {
+    if (cents == 0L) return ""
+    val sign = if (cents < 0) "-" else ""
+    val abs = kotlin.math.abs(cents)
+    val yuan = abs / 100
+    val fen = (abs % 100).toInt()
+    val frac = when {
+        fen == 0 -> ""
+        fen % 10 == 0 -> ".${fen / 10}"
+        else -> ".${fen.toString().padStart(2, '0')}"
+    }
+    return "$sign$yuan$frac"
+}
+
 fun parseYuanToCents(input: String): Long? {
     val s = input.trim()
     if (!Regex("""\d+(\.\d{0,2})?""").matches(s)) return null

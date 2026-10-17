@@ -51,13 +51,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianzhang.app.data.Category
 import com.jianzhang.app.data.Transaction
+import com.jianzhang.app.model.AccountBalance
+import com.jianzhang.app.model.TagUsage
 import com.jianzhang.app.ui.JzViewModel
 import com.jianzhang.app.ui.components.ChamferShape
 import com.jianzhang.app.ui.components.ConfirmDeleteButton
+import com.jianzhang.app.ui.components.FlowRowChips
 import com.jianzhang.app.ui.components.SegmentedControl
 import com.jianzhang.app.ui.components.hudGlow
 import com.jianzhang.app.ui.theme.LocalPalette
 import com.jianzhang.app.util.categoryIcon
+import com.jianzhang.app.util.formatCents
 import com.jianzhang.app.util.currentMonth
 import com.jianzhang.app.util.parseYuanToCents
 import com.jianzhang.app.util.sanitizeAmountInput
@@ -83,12 +87,22 @@ fun RecordSheet(vm: JzViewModel) {
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var cats by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var accounts by remember { mutableStateOf<List<AccountBalance>>(emptyList()) }
+    var tags by remember { mutableStateOf<List<TagUsage>>(emptyList()) }
+    var accountId by remember { mutableLongStateOf(0L) }
+    var tagIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var datePickerOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         cats = vm.repository.categories()
+        // 含停用账户：编辑旧账目时能看见真实归属，新增账目默认仍选在用账户
+        accounts = vm.repository.accounts(includeArchived = true)
+        tags = vm.repository.tags()
         val ed = editing
         if (ed != null) {
+            // 编辑时保留原账户（含“无账户”），不能默默换到别的账户上
+            accountId = ed.accountId ?: 0L
+            tagIds = vm.repository.tagIdsForTransaction(ed.id).toSet()
             typeIndex = if (ed.type == "income") 1 else 0
             val yuan = ed.amountCents / 100.0
             amount = if (yuan == yuan.toLong().toDouble()) yuan.toLong().toString() else yuan.toString()
@@ -97,6 +111,10 @@ fun RecordSheet(vm: JzViewModel) {
             date = ed.date
             note = ed.note
         } else {
+            val activeAccounts = accounts.filter { !it.account.archived }
+            accountId = vm.settings.defaultAccountId.takeIf { id -> activeAccounts.any { it.account.id == id } }
+                ?: activeAccounts.firstOrNull()?.account?.id
+                ?: accounts.firstOrNull()?.account?.id ?: 0L
             typeIndex = if (vm.settings.defaultType == "income") 1 else 0
             val type = if (typeIndex == 1) "income" else "expense"
             val remembered = vm.lastCategoryId()
@@ -145,13 +163,14 @@ fun RecordSheet(vm: JzViewModel) {
                     type = type,
                     amountCents = cents,
                     categoryId = categoryId,
+                    accountId = accountId.takeIf { it > 0 },
                     note = note.trim(),
                     date = date,
                 )
                 if (editing != null) {
-                    vm.repository.updateTransaction(tx)
+                    vm.repository.updateTransaction(tx, tagIds.toList())
                 } else {
-                    vm.repository.addTransaction(tx)
+                    vm.repository.addTransaction(tx, tagIds.toList())
                     if (vm.settings.rememberCategory) vm.rememberLastCategory(categoryId)
                 }
                 vm.refresh()
@@ -277,6 +296,36 @@ fun RecordSheet(vm: JzViewModel) {
                 }
             }
 
+            if (accounts.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("账户", color = palette.text3, fontSize = 12.sp)
+                    FlowRowChips(
+                        options = accounts.map { item ->
+                            item.account.id to buildString {
+                                append(item.account.name)
+                                append("  ¥")
+                                append(formatCents(item.balanceCents))
+                                if (item.account.archived) append("  ·停用")
+                            }
+                        },
+                        selectedIds = setOf(accountId),
+                        onToggle = { accountId = it },
+                    )
+                    if (accounts.firstOrNull { it.account.id == accountId }?.account?.archived == true) {
+                        Text("该账户已停用，仍可记账；余额会计入净资产", color = palette.text3, fontSize = 11.sp)
+                    }
+                }
+            }
+            if (tags.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("标签", color = palette.text3, fontSize = 12.sp)
+                    FlowRowChips(
+                        options = tags.map { it.tag.id to it.tag.name },
+                        selectedIds = tagIds,
+                        onToggle = { id -> tagIds = if (id in tagIds) tagIds - id else tagIds + id },
+                    )
+                }
+            }
             // 日期 + 备注
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(

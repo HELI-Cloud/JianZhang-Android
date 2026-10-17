@@ -53,6 +53,7 @@ import com.jianzhang.app.util.formatCents
 import com.jianzhang.app.util.lastNMonths
 import com.jianzhang.app.util.monthDays
 import com.jianzhang.app.util.shortMonth
+import com.jianzhang.app.util.shiftMonth
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -63,6 +64,9 @@ fun OverviewScreen(vm: JzViewModel) {
     var trend by remember { mutableStateOf<List<MonthAgg>>(emptyList()) }
     var cats by remember { mutableStateOf<List<CategoryTotal>>(emptyList()) }
     var daily by remember { mutableStateOf<List<DayTotal>>(emptyList()) }
+    var netWorth by remember { mutableStateOf(0L) }
+    var previousExpense by remember { mutableStateOf(0L) }
+    var lastYearExpense by remember { mutableStateOf(0L) }
     var catTypeIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(vm.month, vm.refreshKey, catTypeIndex) {
@@ -73,6 +77,12 @@ fun OverviewScreen(vm: JzViewModel) {
             launch { trend = vm.repository.trend(months) }
             launch { cats = vm.repository.categoryTotals(vm.month, type) }
             launch { daily = vm.repository.dailyTotals(vm.month) }
+            launch { netWorth = vm.repository.netWorthCents() }
+            launch { previousExpense = vm.repository.monthSummary(shiftMonth(vm.month, -1)).expenseCents }
+            launch {
+                val year = vm.month.take(4).toInt() - 1
+                lastYearExpense = vm.repository.monthSummary("$year-${vm.month.takeLast(2)}").expenseCents
+            }
         }
     }
 
@@ -106,6 +116,24 @@ fun OverviewScreen(vm: JzViewModel) {
         }
 
         // 月度统计卡片
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(appShape(9.dp))
+                    .background(Brush.linearGradient(listOf(palette.accentWeak, palette.bg1.copy(alpha = 0.5f))))
+                    .border(1.dp, palette.border, appShape(9.dp)).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("净资产", color = palette.text3, fontSize = 11.sp)
+                    CountUpText(netWorth, style = TextStyle(color = palette.text, fontSize = 23.sp, fontWeight = FontWeight.Bold))
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("支出环比", color = palette.text3, fontSize = 10.5.sp)
+                    Text(percentDelta(expense, previousExpense), color = if (expense > previousExpense) palette.expense else palette.income, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("同比 ${percentDelta(expense, lastYearExpense)}", color = palette.text3, fontSize = 10.5.sp)
+                }
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatCard("本月支出", Icons.Filled.ArrowDownward, palette.expense, expense, Modifier.weight(1f))
@@ -226,6 +254,12 @@ fun OverviewScreen(vm: JzViewModel) {
             }
         }
     }
+}
+
+private fun percentDelta(current: Long, base: Long): String {
+    if (base == 0L) return "—"
+    val pct = ((current - base) * 100 / base).toInt()
+    return if (pct > 0) "+$pct%" else "$pct%"
 }
 
 @Composable

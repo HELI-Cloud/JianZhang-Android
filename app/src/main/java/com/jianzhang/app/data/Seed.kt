@@ -27,5 +27,6 @@ class SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         super.onCreate(db)
         db.execSQL(SEED_CATEGORIES_SQL)
+        db.execSQL(SEED_DEFAULT_ACCOUNT_SQL)
     }
 }

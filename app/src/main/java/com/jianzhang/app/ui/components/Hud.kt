@@ -129,8 +129,8 @@ fun HudBackground(modifier: Modifier = Modifier) {
                 ),
             )
 
-            val grid = 28.dp.toPx()
-            val gridColor = palette.border.copy(alpha = 0.045f)
+            val grid = 34.dp.toPx()
+            val gridColor = palette.border.copy(alpha = 0.025f)
             var gx = 0f
             while (gx <= size.width) {
                 drawLine(gridColor, Offset(gx, 0f), Offset(gx, size.height), 1f)
@@ -140,14 +140,6 @@ fun HudBackground(modifier: Modifier = Modifier) {
             while (gy <= size.height) {
                 drawLine(gridColor, Offset(0f, gy), Offset(size.width, gy), 1f)
                 gy += grid
-            }
-
-            val scanColor = if (palette.isDark) Color(0x0D00E5FF) else Color(0x0A007A8C)
-            var sy = 0f
-            val scanStep = 4.dp.toPx()
-            while (sy <= size.height) {
-                drawLine(scanColor, Offset(0f, sy), Offset(size.width, sy), 1f)
-                sy += scanStep
             }
         }
         Canvas(Modifier.fillMaxSize()) {

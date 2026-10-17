@@ -15,6 +15,14 @@ class SettingsStore(context: Context) {
         rememberCategory = prefs.getBoolean("remember_category", false),
         themeMode = prefs.getString("theme_mode", "dark") ?: "dark",
         uiStyle = prefs.getString("ui_style", "hacker") ?: "hacker",
+        defaultAccountId = prefs.getLong("default_account_id", 0L),
+        budgetAlert = prefs.getBoolean("budget_alert", true),
+        billAlert = prefs.getBoolean("bill_alert", true),
+        dailyReminder = prefs.getBoolean("daily_reminder", false),
+        weeklyReminder = prefs.getBoolean("weekly_reminder", true),
+        dailyReminderTime = prefs.getString("daily_reminder_time", "21:00") ?: "21:00",
+        weeklyReminderWeekday = prefs.getInt("weekly_reminder_weekday", 0),
+        systemNotify = prefs.getBoolean("system_notify", true),
     )
 
     fun save(s: AppSettings) {
@@ -25,6 +33,14 @@ class SettingsStore(context: Context) {
             .putBoolean("remember_category", s.rememberCategory)
             .putString("theme_mode", s.themeMode)
             .putString("ui_style", s.uiStyle)
+            .putLong("default_account_id", s.defaultAccountId)
+            .putBoolean("budget_alert", s.budgetAlert)
+            .putBoolean("bill_alert", s.billAlert)
+            .putBoolean("daily_reminder", s.dailyReminder)
+            .putBoolean("weekly_reminder", s.weeklyReminder)
+            .putString("daily_reminder_time", s.dailyReminderTime)
+            .putInt("weekly_reminder_weekday", s.weeklyReminderWeekday)
+            .putBoolean("system_notify", s.systemNotify)
             .apply()
     }
 

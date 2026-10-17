@@ -1,6 +1,5 @@
 package com.jianzhang.app.ui
 
-import com.jianzhang.app.ui.components.appShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,18 +21,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,30 +53,41 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jianzhang.app.JzApplication
 import com.jianzhang.app.model.AuthStatus
 import com.jianzhang.app.ui.about.AboutScreen
+import com.jianzhang.app.ui.accounts.AccountsScreen
 import com.jianzhang.app.ui.analysis.AnalysisScreen
 import com.jianzhang.app.ui.budget.BudgetScreen
-import com.jianzhang.app.ui.components.ChamferShape
 import com.jianzhang.app.ui.components.HudBackground
+import com.jianzhang.app.ui.components.appShape
 import com.jianzhang.app.ui.components.hudGlow
 import com.jianzhang.app.ui.ledger.LedgerScreen
 import com.jianzhang.app.ui.lock.LockScreen
+import com.jianzhang.app.ui.more.MoreScreen
 import com.jianzhang.app.ui.overview.OverviewScreen
 import com.jianzhang.app.ui.record.RecordSheet
+import com.jianzhang.app.ui.recurring.RecurringScreen
+import com.jianzhang.app.ui.reminders.RemindersScreen
 import com.jianzhang.app.ui.settings.SettingsScreen
+import com.jianzhang.app.ui.stats.StatsScreen
+import com.jianzhang.app.ui.tags.TagsScreen
 import com.jianzhang.app.ui.theme.DarkPalette
 import com.jianzhang.app.ui.theme.JzTheme
 import com.jianzhang.app.ui.theme.LightPalette
 import com.jianzhang.app.ui.theme.LocalFontFamily
-import com.jianzhang.app.ui.theme.LocalUiStyle
 import com.jianzhang.app.ui.theme.LocalPalette
+import kotlinx.coroutines.delay
+import com.jianzhang.app.ui.theme.LocalUiStyle
 import com.jianzhang.app.ui.theme.ProvideUiScale
 import com.jianzhang.app.ui.theme.fontSizeScale
 import com.jianzhang.app.util.currentMonth
 import com.jianzhang.app.util.monthLabel
 
+private val PRIMARY = setOf("overview", "ledger", "accounts", "stats", "more")
+private val MONTH_ROUTES = setOf("overview", "ledger", "stats", "budget")
+
 @Composable
-fun JzApp(app: JzApplication) {
+fun JzApp(app: JzApplication, initialRoute: String? = null) {
     val vm: JzViewModel = viewModel()
+    LaunchedEffect(Unit) { if (initialRoute != null) vm.navigate(initialRoute) }
     val sysDark = isSystemInDarkTheme()
     val dark = when (vm.settings.themeMode) {
         "light" -> false
@@ -88,43 +98,53 @@ fun JzApp(app: JzApplication) {
     JzTheme(darkTheme = dark) {
         ProvideUiScale(fontSizeScale(vm.settings.fontSize)) {
             CompositionLocalProvider(
-                    LocalUiStyle provides vm.settings.uiStyle,
+                LocalUiStyle provides vm.settings.uiStyle,
                 LocalFontFamily provides if (vm.settings.fontFamily == "monospace") FontFamily.Monospace else FontFamily.Default,
             ) {
+                LaunchedEffect(vm.refreshKey, vm.settings) { vm.refreshReminders() }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(60_000)
+                        vm.refreshReminders()
+                    }
+                }
                 Box(Modifier.fillMaxSize()) {
                     HudBackground(Modifier.fillMaxSize())
-                    Box(Modifier.fillMaxSize()) {
-                        if (vm.authStatus != AuthStatus.UNLOCKED) {
-                            // 锁屏 / 首次设置密码：不渲染任何账目数据
-                            LockScreen(vm)
-                        } else {
-                            var tab by rememberSaveable { mutableIntStateOf(0) }
-                            Column(Modifier.fillMaxSize()) {
-                                MonthTopBar(
-                                    vm = vm,
-                                    modifier = Modifier.statusBarsPadding(),
-                                )
-                                Box(Modifier.weight(1f)) {
-                                    when (tab) {
-                                        0 -> OverviewScreen(vm)
-                                        1 -> LedgerScreen(vm)
-                                        2 -> BudgetScreen(vm)
-                                        3 -> AnalysisScreen(vm)
-                                        4 -> SettingsScreen(vm)
-                                        5 -> AboutScreen()
-                                    }
+                    if (vm.authStatus != AuthStatus.UNLOCKED) {
+                        LockScreen(vm)
+                    } else {
+                        Column(Modifier.fillMaxSize()) {
+                            if (vm.route in MONTH_ROUTES) {
+                                MonthTopBar(vm, Modifier.statusBarsPadding())
+                            } else {
+                                SecondaryBackBar(vm, Modifier.statusBarsPadding())
+                            }
+                            Box(Modifier.weight(1f)) {
+                                when (vm.route) {
+                                    "overview" -> OverviewScreen(vm)
+                                    "ledger" -> LedgerScreen(vm)
+                                    "accounts" -> AccountsScreen(vm)
+                                    "stats" -> StatsScreen(vm)
+                                    "more" -> MoreScreen(vm)
+                                    "budget" -> BudgetScreen(vm)
+                                    "recurring" -> RecurringScreen(vm)
+                                    "reminders" -> RemindersScreen(vm)
+                                    "tags" -> TagsScreen(vm)
+                                    "analysis" -> AnalysisScreen(vm)
+                                    "settings" -> SettingsScreen(vm)
+                                    "about" -> AboutScreen()
+                                    else -> OverviewScreen(vm)
                                 }
-                                BottomBar(
-                                    tab = tab,
-                                    onSelect = { tab = it },
-                                    onAdd = vm::openAdd,
-                                    modifier = Modifier.navigationBarsPadding(),
-                                )
                             }
-                            if (vm.sheetOpen) {
-                                RecordSheet(vm)
-                            }
+                            BottomBar(
+                                route = vm.route,
+                                reminderCount = vm.reminderCount,
+                                onSelect = vm::navigate,
+                                onAdd = vm::openAdd,
+                                modifier = Modifier.navigationBarsPadding(),
+                            )
                         }
+                        if (vm.sheetOpen) RecordSheet(vm)
                     }
                 }
             }
@@ -161,13 +181,8 @@ private fun MonthTopBar(vm: JzViewModel, modifier: Modifier = Modifier) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = palette.accent,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier
-                    .clip(appShape(6.dp))
-                    .background(palette.accentWeak)
-                    .border(1.dp, palette.border, appShape(6.dp))
-                    .clickable { vm.goCurrentMonth() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.clip(appShape(6.dp)).background(palette.accentWeak).border(1.dp, palette.border, appShape(6.dp))
+                    .clickable { vm.goCurrentMonth() }.padding(horizontal = 12.dp, vertical = 6.dp),
             )
         } else {
             Box(Modifier.width(70.dp))
@@ -175,76 +190,78 @@ private fun MonthTopBar(vm: JzViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-private data class NavItem(val label: String, val icon: ImageVector)
+@Composable
+private fun SecondaryBackBar(vm: JzViewModel, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    Row(modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { vm.navigate("more") }) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回更多", tint = palette.text2)
+        }
+        Text("返回更多", color = palette.text3, fontSize = 12.sp)
+    }
+}
+
+private data class NavItem(val route: String, val label: String, val icon: ImageVector)
 
 private val NAV_ITEMS = listOf(
-    NavItem("概览", Icons.Filled.Dashboard),
-    NavItem("流水", Icons.AutoMirrored.Filled.List),
-    NavItem("预算", Icons.Filled.Savings),
-    NavItem("AI 分析", Icons.Filled.AutoAwesome),
-    NavItem("设置", Icons.Filled.Settings),
-    NavItem("关于", Icons.Filled.Info),
+    NavItem("overview", "概览", Icons.Filled.Dashboard),
+    NavItem("ledger", "流水", Icons.AutoMirrored.Filled.List),
+    NavItem("accounts", "账户", Icons.Filled.AccountBalanceWallet),
+    NavItem("stats", "统计", Icons.Filled.BarChart),
+    NavItem("more", "更多", Icons.Filled.MoreHoriz),
 )
 
 @Composable
-private fun BottomBar(tab: Int, onSelect: (Int) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+private fun BottomBar(
+    route: String,
+    reminderCount: Int,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val palette = LocalPalette.current
-    val shape = appShape(6.dp)
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = palette.bg1.copy(alpha = 0.94f),
-        shadowElevation = 14.dp,
-    ) {
+    val activeRoute = if (route in PRIMARY) route else "more"
+    Surface(modifier.fillMaxWidth(), color = palette.bg1.copy(alpha = 0.95f), shadowElevation = 12.dp) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NAV_ITEMS.forEachIndexed { index, item ->
-                val active = tab == index
+            NAV_ITEMS.forEach { item ->
+                val active = activeRoute == item.route
                 Column(
                     Modifier
                         .weight(1f)
-                        .clip(shape)
+                        .clip(appShape(7.dp))
                         .background(if (active) palette.accentWeak else Color.Transparent)
-                        .clickable { onSelect(index) }
+                        .clickable { onSelect(item.route) }
                         .padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Box(Modifier.fillMaxWidth()) {
-                        if (active) {
-                            // 激活项左侧橙色指示条
+                    Box(Modifier.size(23.dp), contentAlignment = Alignment.Center) {
+                        Icon(item.icon, contentDescription = item.label, tint = if (active) palette.accent else palette.text3, modifier = Modifier.size(20.dp))
+                        if (item.route == "more" && reminderCount > 0) {
                             Box(
-                                Modifier
-                                    .align(Alignment.CenterStart)
-                                    .width(3.dp)
-                                    .height(18.dp)
-                                    .background(palette.expense)
-                                    .shadow(6.dp, CircleShape, ambientColor = palette.expense.copy(alpha = 0.6f)),
-                            )
+                                Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(palette.expense),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    if (reminderCount > 9) "9" else reminderCount.toString(),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
                         }
-                        Icon(
-                            item.icon,
-                            contentDescription = item.label,
-                            tint = if (active) palette.accent else palette.text3,
-                            modifier = Modifier.size(21.dp),
-                        )
                     }
-                    Text(
-                        item.label,
-                        fontSize = 9.5.sp,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (active) palette.accent else palette.text3,
-                        letterSpacing = 0.5.sp,
-                    )
+                    Text(item.label, color = if (active) palette.accent else palette.text3, fontSize = 9.5.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
-            // 记一笔（切角 FAB）
             Box(
                 Modifier
                     .padding(horizontal = 6.dp)
                     .size(50.dp)
-                    .shadow(10.dp, appShape(12.dp), ambientColor = palette.accent.copy(alpha = 0.45f))
+                    .shadow(9.dp, appShape(12.dp), ambientColor = palette.accent.copy(alpha = 0.35f))
                     .clip(appShape(12.dp))
                     .background(Brush.linearGradient(listOf(palette.accent, palette.accentHover)))
                     .clickable(onClick = onAdd),

@@ -68,17 +68,17 @@ fun GlassCard(
             shape = shape,
             color = palette.card.copy(alpha = 0.86f),
             border = BorderStroke(1.dp, palette.border),
-            shadowElevation = 6.dp,
+            shadowElevation = 2.dp,
         ) {
             Column {
                 // 顶部青色渐变描边（被切角自然裁剪）
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(2.dp)
+                        .height(1.dp)
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color.Transparent, palette.accent, palette.expense.copy(alpha = 0.7f), Color.Transparent),
+                                listOf(Color.Transparent, palette.accent.copy(alpha = 0.8f), Color.Transparent),
                             ),
                         ),
                 )

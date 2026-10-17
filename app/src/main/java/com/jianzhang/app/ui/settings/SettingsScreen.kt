@@ -1,5 +1,10 @@
 package com.jianzhang.app.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+
 import com.jianzhang.app.ui.components.appShape
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,9 +72,11 @@ fun SettingsScreen(vm: JzViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var cats by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var accounts by remember { mutableStateOf<List<com.jianzhang.app.model.AccountBalance>>(emptyList()) }
 
     LaunchedEffect(vm.refreshKey) {
         cats = vm.repository.categories()
+        accounts = vm.repository.accounts()
     }
 
     val expenseCats = cats.filter { it.type == "expense" }
@@ -142,12 +149,16 @@ fun SettingsScreen(vm: JzViewModel) {
                 }
                 val r = vm.repository.importBackup(raw, importReplace)
                 vm.refresh()
-                dataMsg = "导入完成（${if (importReplace) "覆盖" else "合并"}）：分类 ${r.first}、账目 ${r.second}、预算 ${r.third}"
+                dataMsg = "导入完成（${if (importReplace) "覆盖" else "合并"}）：账目 ${r.transactions}、账户 ${r.accounts}、转账 ${r.transfers}、标签 ${r.tags}、周期 ${r.recurringRules}"
             } catch (e: Exception) {
                 dataMsg = "导入失败：${e.message ?: "未知错误"}"
             }
         }
     }
+
+    val notificationGranted = Build.VERSION.SDK_INT < 33 ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     fun openAddForm(type: String) {
         addType = type
@@ -272,6 +283,51 @@ fun SettingsScreen(vm: JzViewModel) {
                     }
                     JzSwitch(checked = vm.settings.rememberCategory, onChange = { v -> update { it.copy(rememberCategory = v) } })
                 }
+                if (accounts.isNotEmpty()) {
+                    SettingPills(
+                        label = "默认账户",
+                        desc = "打开“记一笔”时默认使用的账户",
+                        options = listOf("自动") + accounts.map { it.account.name },
+                        values = listOf("0") + accounts.map { it.account.id.toString() },
+                        selected = vm.settings.defaultAccountId.toString(),
+                        onSelect = { v -> update { it.copy(defaultAccountId = v.toLongOrNull() ?: 0L) } },
+                    )
+                }
+            }
+        }
+
+        // 提醒与通知
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Text("提醒与通知", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = palette.text2, modifier = Modifier.padding(bottom = 6.dp))
+                ToggleSetting("超支预警", "总预算或分类预算达到 80% / 超支时提醒", vm.settings.budgetAlert) { v -> update { it.copy(budgetAlert = v) } }
+                ToggleSetting("账单到期提醒", "周期账目到期前 3 天提醒", vm.settings.billAlert) { v -> update { it.copy(billAlert = v) } }
+                ToggleSetting("每日记账提醒", "当日未记账时在设定时间提醒", vm.settings.dailyReminder) { v -> update { it.copy(dailyReminder = v) } }
+                ToggleSetting("每周记账提醒", "所选星期及之后仍无记录时提醒", vm.settings.weeklyReminder) { v -> update { it.copy(weeklyReminder = v) } }
+                SettingPills(
+                    label = "每日提醒时间",
+                    desc = "Android 可能在省电模式下略有延后",
+                    options = listOf("08:00", "12:00", "18:00", "21:00"),
+                    values = listOf("08:00", "12:00", "18:00", "21:00"),
+                    selected = vm.settings.dailyReminderTime,
+                    onSelect = { v -> update { it.copy(dailyReminderTime = v) } },
+                )
+                SettingPills(
+                    label = "每周提醒日",
+                    desc = "到达该星期后仍无记录时提醒",
+                    options = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六"),
+                    values = listOf("0", "1", "2", "3", "4", "5", "6"),
+                    selected = vm.settings.weeklyReminderWeekday.toString(),
+                    onSelect = { v -> update { it.copy(weeklyReminderWeekday = v.toIntOrNull() ?: 0) } },
+                )
+                SettingActionRow(
+                    label = "系统通知权限",
+                    desc = if (notificationGranted) "已授权" else "Android 13 及以上需要通知权限",
+                    actionLabel = if (notificationGranted) "已开启" else "去授权",
+                ) {
+                    if (Build.VERSION.SDK_INT >= 33 && !notificationGranted) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                ToggleSetting("同时发送系统通知", "关闭后仅在应用内提醒中心显示", vm.settings.systemNotify) { v -> update { it.copy(systemNotify = v) } }
             }
         }
 
@@ -437,6 +493,23 @@ fun SettingsScreen(vm: JzViewModel) {
             },
             containerColor = palette.card,
         )
+    }
+}
+
+@Composable
+private fun ToggleSetting(
+    label: String,
+    desc: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    val palette = LocalPalette.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = palette.text)
+            Text(desc, fontSize = 12.sp, color = palette.text3)
+        }
+        JzSwitch(checked = checked, onChange = onChange)
     }
 }
 
