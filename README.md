@@ -1,5 +1,7 @@
 # 简账 (JianZhang) — Android 版
 
+> **新版 1.0.4 已迁移至独立仓库：[HELI-Cloud/JianZhang-Android-v2](https://github.com/HELI-Cloud/JianZhang-Android-v2)。** 本仓库保留 0.6.1 历史版本。
+
 极简 · 本地 · 私密 的个人记账应用，由桌面版（Tauri 2 + Vue 3）移植而来。
 
 ## 特性
